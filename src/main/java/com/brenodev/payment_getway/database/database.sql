@@ -7,6 +7,7 @@ CREATE TABLE Accounts (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     balance DECIMAL(15, 2) NOT NULL DEFAULT 0.00 CHECK (balance >= 0),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+
 );
 
 
@@ -27,5 +28,16 @@ CREATE TABLE Transactions (
     FOREIGN KEY (account_id) REFERENCES Accounts(id) ON DELETE CASCADE,
     FOREIGN KEY (merchant_id) REFERENCES Merchants(id) ON DELETE CASCADE
 );
+
+
+ALTER TABLE Accounts
+    ADD COLUMN per_transaction_limit DECIMAL(15,2) NOT NULL DEFAULT 5000.00,
+  ADD COLUMN daily_limit           DECIMAL(15,2) NOT NULL DEFAULT 10000.00;
+
+ALTER TABLE Transactions
+    ADD COLUMN decline_reason ENUM('INSUFFICIENT_FUNDS','PER_TRANSACTION_LIMIT_EXCEEDED','DAILY_LIMIT_EXCEEDED') NULL,
+  ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+
+CREATE INDEX idx_tx_account_status_created ON Transactions (account_id, status, created_at);
 
 
