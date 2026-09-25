@@ -12,7 +12,6 @@ import java.time.Instant;
 
 @Repository
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
-    //Limite diário
     @Query("""
         select coalesce(sum(t.amount), 0) from PaymentTransaction t
         where t.account.id = :accountId and t.status = :status and t.createdAt >= :since

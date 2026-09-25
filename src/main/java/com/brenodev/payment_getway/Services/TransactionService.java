@@ -4,6 +4,7 @@ import com.brenodev.payment_getway.DTOs.TransactionDTO;
 import com.brenodev.payment_getway.Entity.Account;
 import com.brenodev.payment_getway.Entity.Merchant;
 import com.brenodev.payment_getway.Entity.Transaction;
+import com.brenodev.payment_getway.Enums.DeclineReason;
 import com.brenodev.payment_getway.Enums.TransactionStatus;
 import com.brenodev.payment_getway.Repositories.AccountRepository;
 import com.brenodev.payment_getway.Repositories.MerchantRepository;
@@ -12,6 +13,8 @@ import com.brenodev.payment_getway.Exception.ResourceNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
 
 @Service
 @RequiredArgsConstructor
@@ -40,13 +43,19 @@ public class TransactionService {
                 merchant,
                 dto.amount()
         );
-
         transaction.transitionTo(TransactionStatus.PROCESSING);
 
-        // processamento...
 
-        transaction.transitionTo(TransactionStatus.APPROVED);
+        DeclineReason reason = evaluate(account, dto.amount());
 
+        if(reason != null){
+            transaction.decline(reason);
+        } else{
+            account.debit(dto.amount());;
+            transaction.transitionTo(TransactionStatus.APPROVED);
+        }
+
+        
         return transactionRepository.save(transaction);
     }
 
@@ -73,5 +82,21 @@ public class TransactionService {
         account.credit(transaction.getAmount());
 
         return transactionRepository.save(transaction);
+    }
+
+
+
+
+
+    private DeclineReason evaluate(Account account, BigDecimal amount) {
+        if (account.getBalance().compareTo(amount) < 0) {
+            return DeclineReason.INSUFFICIENT_FUNDS;
+        }
+
+        if (amount.compareTo(account.getPerTransactionLimit()) > 0) {
+            return DeclineReason.PER_TRANSACTION_LIMIT_EXCEEDED;
+        }
+
+        return null;
     }
 }
