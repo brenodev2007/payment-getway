@@ -13,4 +13,6 @@ import java.util.Optional;
 public interface AccountRepository extends JpaRepository<Account, Long> {
    Optional<Account> findIdForUpdate(@Param("id")Long id);
    Optional<Account> findForUpdateById(Long id);
+   Optional<Account>findByStatus(Long id);
+
 }

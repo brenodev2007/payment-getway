@@ -3,13 +3,18 @@ package com.brenodev.payment_getway.Entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.Setter;
 
 import java.math.BigDecimal;
 
 @Entity
 @Table(name = "Accounts")
 @Getter
+@Setter
 public class Account {
+    private static final BigDecimal DEFAULT_PER_TRANSACTION_LIMIT = new BigDecimal("5000.00");
+    private static final BigDecimal DEFAULT_DAILY_LIMIT = new BigDecimal("10000.00");
+
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
@@ -28,5 +33,12 @@ public class Account {
 
     public void credit(BigDecimal amount) {
         balance = balance.add(amount);
+    }
+
+
+    public Account(BigDecimal initialBalance, BigDecimal perTransactionLimit, BigDecimal dailyLimit) {
+        this.balance = initialBalance != null ? initialBalance : BigDecimal.ZERO;
+        this.perTransactionLimit = perTransactionLimit != null ? perTransactionLimit : DEFAULT_PER_TRANSACTION_LIMIT;
+        this.dailyLimit = dailyLimit != null ? dailyLimit : DEFAULT_DAILY_LIMIT;
     }
 }
