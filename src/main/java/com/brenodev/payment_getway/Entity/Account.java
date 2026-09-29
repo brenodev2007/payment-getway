@@ -2,7 +2,9 @@ package com.brenodev.payment_getway.Entity;
 
 
 import jakarta.persistence.*;
+import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
@@ -11,6 +13,7 @@ import java.math.BigDecimal;
 @Table(name = "Accounts")
 @Getter
 @Setter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Account {
     private static final BigDecimal DEFAULT_PER_TRANSACTION_LIMIT = new BigDecimal("5000.00");
     private static final BigDecimal DEFAULT_DAILY_LIMIT = new BigDecimal("10000.00");

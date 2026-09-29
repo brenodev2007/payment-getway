@@ -37,14 +37,17 @@ public class TransactionService {
 
 
 
+
     @Transactional
-    public Transaction create(TransactionDTO dto, String IdempotencyKey) {
+    public Transaction create(TransactionDTO dto, String idempotencyKey) {
 
         String requestHash = generateHash(dto);
 
-        Optional<IdempotencyKey> existing = idempotencyRepository.findByKey(IdempotencyKey);
+        Optional<IdempotencyKey> existing =
+                idempotencyRepository.findByKey(idempotencyKey);
 
-        if(existing.isPresent()) {
+        if (existing.isPresent()) {
+
             IdempotencyKey savedKey = existing.get();
 
             if (!savedKey.getRequestHash().equals(requestHash)) {
@@ -57,55 +60,71 @@ public class TransactionService {
                 return savedKey.getTransaction();
             }
 
-            throw new IllegalArgumentException("A transação está sendo processada");
+            throw new IllegalArgumentException(
+                    "A transação está sendo processada"
+            );
         }
 
-        IdempotencyKey key = new IdempotencyKey();
-
-        key.setKey(IdempotencyKey);
-        key.setRequestHash(requestHash);
-        key.setStatus(IdempotencyStatus.PROCESSING);
-        key.setCreatedAt(LocalDateTime.now());
-
-        idempotencyRepository.saveAndFlush(key);
-
-
+        // 1. Busca a conta
         Account account = accountRepository
                 .findById(dto.accountId())
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Conta não encontrada"));
 
+        // 2. Busca o merchant
         Merchant merchant = merchantRepository
                 .findById(dto.merchantId())
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Merchant não encontrado"));
 
+        // 3. Cria a chave de idempotência
+        IdempotencyKey key = new IdempotencyKey();
+
+        key.setKey(idempotencyKey);
+        key.setRequestHash(requestHash);
+        key.setStatus(IdempotencyStatus.PROCESSING);
+        key.setCreatedAt(LocalDateTime.now());
+
+        // IMPORTANTE
+        key.setAccount(account);
+
+        // Agora sim salva
+        idempotencyRepository.saveAndFlush(key);
+
+        // 4. Cria a transação
         Transaction transaction = Transaction.create(
                 account,
                 merchant,
                 dto.amount()
         );
+
         transaction.transitionTo(TransactionStatus.PROCESSING);
 
-
+        // 5. Avalia a transação
         DeclineReason reason = evaluate(account, dto.amount());
 
-        if(reason != null){
+        if (reason != null) {
+
             transaction.decline(reason);
-        } else{
-            account.debit(dto.amount());;
+
+        } else {
+
+            account.debit(dto.amount());
+
             transaction.transitionTo(TransactionStatus.APPROVED);
         }
+
+        // 6. Salva a transação
         Transaction savedTransaction =
                 transactionRepository.save(transaction);
 
+        // 7. Finaliza a idempotência
         key.setTransaction(savedTransaction);
         key.setStatus(IdempotencyStatus.COMPLETED);
 
         idempotencyRepository.save(key);
 
         return savedTransaction;
-
     }
 
 

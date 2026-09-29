@@ -6,7 +6,7 @@
 
 [X] Dia 5: Endpoint de consulta de status e endpoint de reembolso (parcial e total). Testes unitários das regras de negócio.
 
-[] Dia 6-7 (fim de semana): Implementar idempotência — header Idempotency-Key, tabela pra guardar a chave + resultado da primeira execução, retornar o mesmo resultado se a chave repetir. Escrever teste simulando duas requisições concorrentes com a mesma chave (usar CompletableFuture ou threads pra provar que não duplica).
+[x] Dia 6-7 (fim de semana): Implementar idempotência — header Idempotency-Key, tabela pra guardar a chave + resultado da primeira execução, retornar o mesmo resultado se a chave repetir. Escrever teste simulando duas requisições concorrentes com a mesma chave (usar CompletableFuture ou threads pra provar que não duplica).
 
 ## Semana 2 — Assincronia e resiliência
 

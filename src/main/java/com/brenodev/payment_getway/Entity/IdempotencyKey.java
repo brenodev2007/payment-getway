@@ -37,5 +37,9 @@ public class IdempotencyKey {
     @JoinColumn(name = "transaction_id")
     private Transaction transaction;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "account_id", nullable = false)
+    private Account account;
+
     private LocalDateTime createdAt;
 }

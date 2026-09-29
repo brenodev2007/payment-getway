@@ -6,6 +6,7 @@ import com.brenodev.payment_getway.Exception.InvalidStateTransitionException;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -37,7 +38,8 @@ public class Transaction {
     @Column(name = "decline_reason")
     private DeclineReason declineReason;
 
-    @Column(name = "created_at", insertable = false, updatable = false)
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
     private Instant createdAt;
 
     protected Transaction() {}
