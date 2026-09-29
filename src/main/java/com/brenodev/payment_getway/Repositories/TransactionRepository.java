@@ -13,7 +13,7 @@ import java.time.Instant;
 @Repository
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
     @Query("""
-        select coalesce(sum(t.amount), 0) from PaymentTransaction t
+        select coalesce(sum(t.amount), 0) from Transaction t
         where t.account.id = :accountId and t.status = :status and t.createdAt >= :since
         """)
     BigDecimal sumAmountSince(@Param("accountId") Long accountId,

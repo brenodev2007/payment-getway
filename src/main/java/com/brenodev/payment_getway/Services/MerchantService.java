@@ -13,7 +13,7 @@ public class MerchantService {
     private final MerchantRepository merchantRepository;
 
     public Merchant findByMerchantId(Long id) {
-        return merchantRepository.findByMerchantId(id).orElse(null);
+        return merchantRepository.findById(id).orElse(null);
     }
 
     public Merchant create(MerchantDTO dto){

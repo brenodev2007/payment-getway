@@ -2,11 +2,14 @@ package com.brenodev.payment_getway.Services;
 
 import com.brenodev.payment_getway.DTOs.TransactionDTO;
 import com.brenodev.payment_getway.Entity.Account;
+import com.brenodev.payment_getway.Entity.IdempotencyKey;
 import com.brenodev.payment_getway.Entity.Merchant;
 import com.brenodev.payment_getway.Entity.Transaction;
 import com.brenodev.payment_getway.Enums.DeclineReason;
+import com.brenodev.payment_getway.Enums.IdempotencyStatus;
 import com.brenodev.payment_getway.Enums.TransactionStatus;
 import com.brenodev.payment_getway.Repositories.AccountRepository;
+import com.brenodev.payment_getway.Repositories.IdempotencyRepository;
 import com.brenodev.payment_getway.Repositories.MerchantRepository;
 import com.brenodev.payment_getway.Repositories.TransactionRepository;
 import com.brenodev.payment_getway.Exception.ResourceNotFoundException;
@@ -15,6 +18,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
+import java.util.HexFormat;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -23,10 +32,43 @@ public class TransactionService {
     private final MerchantRepository merchantRepository;
     private final AccountRepository accountRepository;
     private final TransactionRepository transactionRepository;
+    private final IdempotencyRepository idempotencyRepository;
+
+
 
 
     @Transactional
-    public Transaction create(TransactionDTO dto) {
+    public Transaction create(TransactionDTO dto, String IdempotencyKey) {
+
+        String requestHash = generateHash(dto);
+
+        Optional<IdempotencyKey> existing = idempotencyRepository.findByKey(IdempotencyKey);
+
+        if(existing.isPresent()) {
+            IdempotencyKey savedKey = existing.get();
+
+            if (!savedKey.getRequestHash().equals(requestHash)) {
+                throw new IllegalArgumentException(
+                        "Chave de idempotência utilizada com dados diferentes"
+                );
+            }
+
+            if (savedKey.getTransaction() != null) {
+                return savedKey.getTransaction();
+            }
+
+            throw new IllegalArgumentException("A transação está sendo processada");
+        }
+
+        IdempotencyKey key = new IdempotencyKey();
+
+        key.setKey(IdempotencyKey);
+        key.setRequestHash(requestHash);
+        key.setStatus(IdempotencyStatus.PROCESSING);
+        key.setCreatedAt(LocalDateTime.now());
+
+        idempotencyRepository.saveAndFlush(key);
+
 
         Account account = accountRepository
                 .findById(dto.accountId())
@@ -54,9 +96,16 @@ public class TransactionService {
             account.debit(dto.amount());;
             transaction.transitionTo(TransactionStatus.APPROVED);
         }
+        Transaction savedTransaction =
+                transactionRepository.save(transaction);
 
-        
-        return transactionRepository.save(transaction);
+        key.setTransaction(savedTransaction);
+        key.setStatus(IdempotencyStatus.COMPLETED);
+
+        idempotencyRepository.save(key);
+
+        return savedTransaction;
+
     }
 
 
@@ -85,9 +134,7 @@ public class TransactionService {
     }
 
 
-
-
-
+    @Transactional
     private DeclineReason evaluate(Account account, BigDecimal amount) {
         if (account.getBalance().compareTo(amount) < 0) {
             return DeclineReason.INSUFFICIENT_FUNDS;
@@ -98,5 +145,25 @@ public class TransactionService {
         }
 
         return null;
+    }
+
+
+    private String generateHash(TransactionDTO dto) {
+        try {
+            String data = dto.accountId() + ":" +
+                    dto.merchantId() + ":" +
+                    dto.amount().toPlainString();
+
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+
+            byte[] hash = digest.digest(
+                    data.getBytes(StandardCharsets.UTF_8)
+            );
+
+            return HexFormat.of().formatHex(hash);
+
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("Erro ao gerar hash", e);
+        }
     }
 }

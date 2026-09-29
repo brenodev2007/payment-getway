@@ -4,6 +4,7 @@ import com.brenodev.payment_getway.DTOs.TransactionDTO;
 import com.brenodev.payment_getway.Entity.Transaction;
 import com.brenodev.payment_getway.Services.TransactionService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -15,10 +16,14 @@ public class TransactionController {
 
 
     @PostMapping
-    public Transaction create(@RequestBody TransactionDTO dto) {
-        Transaction transaction = transactionService.create(dto);
+    public ResponseEntity<Transaction> createPayment(
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @RequestBody TransactionDTO request
+    ) {
+        Transaction transaction =
+                transactionService.create(request, idempotencyKey);
 
-        return transaction;
+        return ResponseEntity.ok(transaction);
     }
 
 

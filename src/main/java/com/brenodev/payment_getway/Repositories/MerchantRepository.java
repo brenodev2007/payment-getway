@@ -9,5 +9,5 @@ import java.util.Optional;
 @Repository
 public interface MerchantRepository extends JpaRepository<Merchant, Long> {
 
-    Optional<Merchant> findByMerchantId(Long merchantId);
+
 }
