@@ -18,6 +18,9 @@ public class Merchant {
     private Long id;
     private String name;
 
+    @Column(name = "webhook_url")
+    private String webhookUrl;
+
 
     public Merchant(Long id, String name) {
         this.id = id;

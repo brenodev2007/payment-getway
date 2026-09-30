@@ -1,6 +1,7 @@
 package com.brenodev.payment_getway.Services;
 
 import com.brenodev.payment_getway.DTOs.TransactionDTO;
+import com.brenodev.payment_getway.DTOs.TransactionWebhookDTO;
 import com.brenodev.payment_getway.Entity.Account;
 import com.brenodev.payment_getway.Entity.IdempotencyKey;
 import com.brenodev.payment_getway.Entity.Merchant;
@@ -13,14 +14,17 @@ import com.brenodev.payment_getway.Repositories.IdempotencyRepository;
 import com.brenodev.payment_getway.Repositories.MerchantRepository;
 import com.brenodev.payment_getway.Repositories.TransactionRepository;
 import com.brenodev.payment_getway.Exception.ResourceNotFoundException;
+import com.brenodev.payment_getway.webhook.TransactionStatusChangedEvent;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
 import java.util.Optional;
@@ -34,8 +38,7 @@ public class TransactionService {
     private final TransactionRepository transactionRepository;
     private final IdempotencyRepository idempotencyRepository;
 
-
-
+    private final ApplicationEventPublisher eventPublisher;
 
 
     @Transactional
@@ -118,11 +121,31 @@ public class TransactionService {
         Transaction savedTransaction =
                 transactionRepository.save(transaction);
 
+        TransactionWebhookDTO payload =
+                new TransactionWebhookDTO(
+                        savedTransaction.getId(),
+                        savedTransaction.getMerchant().getId(),
+                        savedTransaction.getAmount(),
+                        savedTransaction.getStatus(),
+                        savedTransaction.getCreatedAt(),
+                        Instant.now()
+                );
+
+        eventPublisher.publishEvent(
+                new TransactionStatusChangedEvent(
+                        savedTransaction.getMerchant().getWebhookUrl(),
+                        payload
+                )
+        );
+
+
         // 7. Finaliza a idempotência
         key.setTransaction(savedTransaction);
         key.setStatus(IdempotencyStatus.COMPLETED);
 
         idempotencyRepository.save(key);
+
+
 
         return savedTransaction;
     }
