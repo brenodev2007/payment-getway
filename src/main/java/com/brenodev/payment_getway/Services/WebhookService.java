@@ -20,7 +20,7 @@ public class WebhookService {
 
     @Async
     public void sendWebhook(String webhookUrl, TransactionWebhookDTO payload) {
-        try{
+
             restClient.post()
                     .uri(webhookUrl)
                     .contentType(MediaType.APPLICATION_JSON)
@@ -28,8 +28,6 @@ public class WebhookService {
                     .retrieve()
                     .toBodilessEntity();
             log.info("Webhook posted successfully", payload.transactionId());
-        }catch(Exception e){
-            log.error("Error while sending webhook posted", payload.transactionId() ,e);
-        }
+
     }
 }

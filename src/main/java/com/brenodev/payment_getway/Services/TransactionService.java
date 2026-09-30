@@ -39,6 +39,7 @@ public class TransactionService {
     private final IdempotencyRepository idempotencyRepository;
 
     private final ApplicationEventPublisher eventPublisher;
+    private final OutboxService outboxService;
 
 
     @Transactional
@@ -130,6 +131,13 @@ public class TransactionService {
                         savedTransaction.getCreatedAt(),
                         Instant.now()
                 );
+
+        outboxService.createEvent(
+                "transaction.approved",
+                savedTransaction.getId(),
+                savedTransaction.getMerchant().getWebhookUrl(),
+                payload
+        );
 
         eventPublisher.publishEvent(
                 new TransactionStatusChangedEvent(
