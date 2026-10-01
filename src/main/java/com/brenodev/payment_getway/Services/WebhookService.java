@@ -1,6 +1,7 @@
 package com.brenodev.payment_getway.Services;
 
 import com.brenodev.payment_getway.DTOs.TransactionWebhookDTO;
+import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -17,17 +18,27 @@ public class WebhookService {
 
     private final RestClient restClient;
 
+    @Retry(name = "webhookRetry")
+    public void sendWebhook(
+            String webhookUrl,
+            TransactionWebhookDTO payload
+    ) {
 
-    @Async
-    public void sendWebhook(String webhookUrl, TransactionWebhookDTO payload) {
+        log.info(
+                "Enviando webhook da transação {}",
+                payload.transactionId()
+        );
 
-            restClient.post()
-                    .uri(webhookUrl)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(payload)
-                    .retrieve()
-                    .toBodilessEntity();
-            log.info("Webhook posted successfully", payload.transactionId());
+        restClient.post()
+                .uri(webhookUrl)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(payload)
+                .retrieve()
+                .toBodilessEntity();
 
+        log.info(
+                "Webhook enviado com sucesso para transação {}",
+                payload.transactionId()
+        );
     }
 }

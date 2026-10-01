@@ -31,6 +31,9 @@ public class OutboxEvent {
     @Column(nullable = false)
     private Long aggregateId;
 
+    @Column(nullable = false)
+    private Instant processingStartedAt;
+
     @Column(nullable = false, columnDefinition = "TEXT")
     private String payload;
 
@@ -75,5 +78,7 @@ public class OutboxEvent {
         if (this.nextAttemptAt == null) {
             this.nextAttemptAt = Instant.now();
         }
+
+        this.processingStartedAt = null;
     }
 }

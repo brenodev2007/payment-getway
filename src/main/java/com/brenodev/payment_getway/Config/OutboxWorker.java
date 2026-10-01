@@ -1,13 +1,15 @@
-package com.brenodev.payment_getway.Config;
 
+package com.brenodev.payment_getway.Config;
 
 import com.brenodev.payment_getway.DTOs.TransactionWebhookDTO;
 import com.brenodev.payment_getway.Entity.OutboxEvent;
 import com.brenodev.payment_getway.Enums.OutboxStatus;
 import com.brenodev.payment_getway.Repositories.OutboxEventRepository;
+import com.brenodev.payment_getway.Services.OutboxClaimService;
 import com.brenodev.payment_getway.Services.WebhookService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
@@ -21,32 +23,48 @@ import java.util.List;
 public class OutboxWorker {
 
     private final OutboxEventRepository outboxRepository;
+    private final OutboxClaimService claimService;
     private final WebhookService webhookService;
     private final ObjectMapper objectMapper;
+    private final OutboxProperties properties;
 
-    @Scheduled(fixedDelay = 5000)
+    private static final long PROCESSING_TIMEOUT_MINUTES = 5;
+
+
+    @Scheduled(fixedDelayString = "${webhook.outbox.polling-interval:5000}")
     public void processPendingEvents() {
 
         List<OutboxEvent> events =
-                outboxRepository
-                        .findTop50ByStatusAndNextAttemptAtLessThanEqualOrderByCreatedAtAsc(
-                                OutboxStatus.PENDING,
-                                Instant.now()
-                        );
+                claimService.claimPendingEvents(
+                        properties.getBatchSize()
+                );
 
         for (OutboxEvent event : events) {
             processEvent(event);
         }
     }
 
+
+    @Scheduled(fixedDelayString = "${webhook.outbox.recovery-interval:60000}")
+    public void recoverStuckEvents() {
+
+        Instant cutoff = Instant.now()
+                .minusSeconds(PROCESSING_TIMEOUT_MINUTES * 60);
+
+        int recovered = claimService.recoverStuckEvents(cutoff);
+
+        if (recovered > 0) {
+            log.warn(
+                    "{} eventos presos em PROCESSING foram recuperados.",
+                    recovered
+            );
+        }
+    }
+
+
     private void processEvent(OutboxEvent event) {
 
         try {
-            event.setStatus(OutboxStatus.PROCESSING);
-            event.setAttempts(event.getAttempts() + 1);
-
-            outboxRepository.save(event);
-
             TransactionWebhookDTO payload =
                     objectMapper.readValue(
                             event.getPayload(),
@@ -58,29 +76,106 @@ public class OutboxWorker {
                     payload
             );
 
-            event.setStatus(OutboxStatus.SENT);
-            event.setSentAt(Instant.now());
-            event.setLastError(null);
-
-            outboxRepository.save(event);
-
-            log.info(
-                    "Evento {} enviado com sucesso",
-                    event.getEventId()
-            );
+            markAsSent(event);
 
         } catch (Exception e) {
 
-            event.setStatus(OutboxStatus.FAILED);
-            event.setLastError(e.getMessage());
+            scheduleRetry(event, e);
+        }
+    }
 
-            outboxRepository.save(event);
+
+    private void markAsSent(OutboxEvent event) {
+
+        event.setStatus(OutboxStatus.SENT);
+        event.setSentAt(Instant.now());
+        event.setLastError(null);
+        event.setProcessingStartedAt(null);
+
+        outboxRepository.save(event);
+
+        log.info(
+                "Webhook enviado com sucesso. EventId: {}",
+                event.getEventId()
+        );
+    }
+
+
+    private void scheduleRetry(
+            OutboxEvent event,
+            Exception exception
+    ) {
+
+        int attempts = event.getAttempts() + 1;
+
+        event.setAttempts(attempts);
+        event.setLastError(
+                truncate(exception.getMessage(), 2000)
+        );
+        event.setProcessingStartedAt(null);
+
+        if (attempts >= properties.getMaxAttempts()) {
+
+            event.setStatus(OutboxStatus.FAILED);
+            event.setNextAttemptAt(null);
 
             log.error(
-                    "Falha ao processar evento {}: {}",
+                    "Evento {} atingiu o limite de tentativas.",
+                    event.getEventId()
+            );
+
+        } else {
+
+            long delay = calculateBackoff(attempts);
+
+            event.setStatus(OutboxStatus.PENDING);
+            event.setNextAttemptAt(
+                    Instant.now().plusSeconds(delay)
+            );
+
+            log.warn(
+                    "Falha no webhook {}. Tentativa {} de {}. " +
+                            "Nova tentativa em {} segundos.",
                     event.getEventId(),
-                    e.getMessage()
+                    attempts,
+                    properties.getMaxAttempts(),
+                    delay
             );
         }
+
+        outboxRepository.save(event);
+    }
+
+
+    private long calculateBackoff(int attempts) {
+
+        long initialDelay = properties.getInitialDelay();
+        long maxDelay = properties.getMaxDelay();
+
+        int exponent = Math.min(attempts - 1, 30);
+
+        long delay;
+
+        try {
+            delay = Math.multiplyExact(
+                    initialDelay,
+                    1L << exponent
+            );
+        } catch (ArithmeticException e) {
+            delay = maxDelay;
+        }
+
+        return Math.min(delay, maxDelay);
+    }
+
+    private String truncate(String message, int maxLength) {
+
+        if (message == null) {
+            return "Erro desconhecido";
+        }
+
+        return message.length() <= maxLength
+                ? message
+                : message.substring(0, maxLength);
     }
 }
