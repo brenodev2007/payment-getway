@@ -178,5 +178,11 @@ CREATE INDEX idx_outbox_processing_started
 CREATE INDEX idx_outbox_aggregate
     ON Outbox_Events (aggregate_type, aggregate_id);
 
+ALTER TABLE idempotency_keys
+DROP INDEX uk_idempotency_key;
+
+ALTER TABLE idempotency_keys
+    ADD CONSTRAINT uk_account_idempotency_key
+        UNIQUE (account_id, idempotency_key);
 
 

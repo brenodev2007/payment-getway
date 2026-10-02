@@ -47,8 +47,13 @@ public class TransactionService {
 
         String requestHash = generateHash(dto);
 
+        Account account = accountRepository
+                .findByIdForUpdate(dto.accountId())
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Conta não encontrada"));
+
         Optional<IdempotencyKey> existing =
-                idempotencyRepository.findByKey(idempotencyKey);
+                idempotencyRepository.findByAccountIdAndKey(account.getId(), idempotencyKey);
 
         if (existing.isPresent()) {
 
@@ -69,19 +74,12 @@ public class TransactionService {
             );
         }
 
-        // 1. Busca a conta
-        Account account = accountRepository
-                .findById(dto.accountId())
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("Conta não encontrada"));
 
-        // 2. Busca o merchant
         Merchant merchant = merchantRepository
                 .findById(dto.merchantId())
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Merchant não encontrado"));
-
-        // 3. Cria a chave de idempotência
+a
         IdempotencyKey key = new IdempotencyKey();
 
         key.setKey(idempotencyKey);
@@ -159,29 +157,65 @@ public class TransactionService {
     }
 
 
+
     @Transactional
     public Transaction refund(Long transactionId) {
 
+
         Transaction transaction = transactionRepository
-                .findById(transactionId)
+                .findByIdForUpdate(transactionId)
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
                                 "Transação não encontrada"
                         ));
 
+
+        if (transaction.getStatus() != TransactionStatus.APPROVED) {
+            throw new IllegalStateException(
+                    "Somente transações aprovadas podem ser estornadas"
+            );
+        }
+
+
         Account account = accountRepository
-                .findById(transaction.getAccount().getId())
+                .findByIdForUpdate(transaction.getAccount().getId())
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
                                 "Conta não encontrada"
                         ));
 
+
         transaction.transitionTo(TransactionStatus.REFUNDED);
+
 
         account.credit(transaction.getAmount());
 
-        return transactionRepository.save(transaction);
+
+        Transaction savedTransaction =
+                transactionRepository.save(transaction);
+
+
+        TransactionWebhookDTO payload =
+                new TransactionWebhookDTO(
+                        savedTransaction.getId(),
+                        savedTransaction.getMerchant().getId(),
+                        savedTransaction.getAmount(),
+                        savedTransaction.getStatus(),
+                        savedTransaction.getCreatedAt(),
+                        Instant.now()
+                );
+
+        outboxService.createEvent(
+                "transaction.refunded",
+                savedTransaction.getId(),
+                savedTransaction.getMerchant().getWebhookUrl(),
+                payload
+        );
+
+
+        return savedTransaction;
     }
+
 
 
     @Transactional

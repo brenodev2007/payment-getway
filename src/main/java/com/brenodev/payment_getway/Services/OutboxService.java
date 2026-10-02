@@ -8,7 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.boot.json.JsonParseException;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
-
+import tools.jackson.core.JacksonException;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -32,7 +32,6 @@ public class OutboxService {
 
         try{
             OutboxEvent event = new OutboxEvent();
-            event.setEventType(eventType);
             event.setEventId(UUID.randomUUID());
             event.setEventType(eventType);
             event.setAggregateType("TRANSACTION");
@@ -44,7 +43,7 @@ public class OutboxService {
             event.setNextAttemptAt(Instant.now());
 
             outboxEventRepository.save(event);
-        } catch(JsonParseException e){
+        } catch(JacksonException  e){
             throw new IllegalStateException(
                     "Erro ao serializar evento de webhook",
                     e

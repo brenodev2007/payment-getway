@@ -8,4 +8,6 @@ import java.util.Optional;
 public interface IdempotencyRepository extends JpaRepository<IdempotencyKey, Long> {
 
     Optional<IdempotencyKey> findByKey(String key);
+
+    Optional<IdempotencyKey> findByAccountIdAndKey(Long accountId,String key);
 }
