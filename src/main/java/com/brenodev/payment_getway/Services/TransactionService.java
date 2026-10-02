@@ -38,7 +38,7 @@ public class TransactionService {
     private final TransactionRepository transactionRepository;
     private final IdempotencyRepository idempotencyRepository;
 
-    private final ApplicationEventPublisher eventPublisher;
+
     private final OutboxService outboxService;
 
 
@@ -132,18 +132,18 @@ public class TransactionService {
                         Instant.now()
                 );
 
+        String eventType = switch (savedTransaction.getStatus()) {
+            case APPROVED -> "transaction.approved";
+            case DECLINED -> "transaction.declined";
+            case REFUNDED -> "transaction.refunded";
+            default -> "transaction.status_changed";
+        };
+
         outboxService.createEvent(
-                "transaction.approved",
+                eventType,
                 savedTransaction.getId(),
                 savedTransaction.getMerchant().getWebhookUrl(),
                 payload
-        );
-
-        eventPublisher.publishEvent(
-                new TransactionStatusChangedEvent(
-                        savedTransaction.getMerchant().getWebhookUrl(),
-                        payload
-                )
         );
 
 

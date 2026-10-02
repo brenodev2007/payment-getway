@@ -27,7 +27,7 @@ public class OutboxClaimService {
                         .findByStatusAndNextAttemptAtLessThanEqualOrderByCreatedAtAsc(
                                 OutboxStatus.PENDING,
                                 Instant.now(),
-                                (Pageable) PageRequest.of(0, batchSize)
+                                PageRequest.of(0, batchSize)
                         );
 
         Instant now = Instant.now();

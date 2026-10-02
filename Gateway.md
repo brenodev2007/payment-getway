@@ -12,7 +12,7 @@
 
 [x] Dia 8-9: Sistema de webhook: quando a transação muda de estado, disparar notificação HTTP pro "lojista" (pode ser um endpoint mock seu mesmo). Implementar de forma assíncrona (@Async ou fila simples).
 
-[] Dia 10-11: Adicionar retry com backoff exponencial nas chamadas de webhook (o lojista pode estar fora do ar). Usar Resilience4j pra isso — já deixa o projeto com uma lib de mercado no currículo.
+[x] Dia 10-11: Adicionar retry com backoff exponencial nas chamadas de webhook (o lojista pode estar fora do ar). Usar Resilience4j pra isso — já deixa o projeto com uma lib de mercado no currículo.
 
 [] Dia 12: Logs estruturados e auditoria — toda mudança de estado da transação vira um registro imutável (event sourcing simplificado, nem precisa ser o padrão completo, só um histórico append-only).
 

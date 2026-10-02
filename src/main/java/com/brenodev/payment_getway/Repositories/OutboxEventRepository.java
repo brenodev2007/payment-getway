@@ -6,7 +6,7 @@ import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 
-import java.awt.print.Pageable;
+import org.springframework.data.domain.Pageable;
 import java.time.Instant;
 import java.util.List;
 
