@@ -1,10 +1,12 @@
 
 package com.brenodev.payment_getway.Config;
 
-import com.brenodev.payment_getway.DTOs.TransactionWebhookDTO;
+import com.brenodev.payment_getway.Entity.Merchant;
 import com.brenodev.payment_getway.Entity.OutboxEvent;
+import com.brenodev.payment_getway.Entity.Transaction;
 import com.brenodev.payment_getway.Enums.OutboxStatus;
 import com.brenodev.payment_getway.Repositories.OutboxEventRepository;
+import com.brenodev.payment_getway.Repositories.TransactionRepository;
 import com.brenodev.payment_getway.Services.OutboxClaimService;
 import com.brenodev.payment_getway.Services.WebhookService;
 import lombok.RequiredArgsConstructor;
@@ -12,7 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import tools.jackson.databind.ObjectMapper;
+
 
 import java.time.Instant;
 import java.util.List;
@@ -25,14 +27,17 @@ public class OutboxWorker {
     private final OutboxEventRepository outboxRepository;
     private final OutboxClaimService claimService;
     private final WebhookService webhookService;
-    private final ObjectMapper objectMapper;
     private final OutboxProperties properties;
+    private final TransactionRepository transactionRepository;
 
     private static final long PROCESSING_TIMEOUT_MINUTES = 5;
 
 
     @Scheduled(fixedDelayString = "${webhook.outbox.polling-interval:5000}")
     public void processPendingEvents() {
+
+
+
 
         List<OutboxEvent> events =
                 claimService.claimPendingEvents(
@@ -65,16 +70,30 @@ public class OutboxWorker {
     private void processEvent(OutboxEvent event) {
 
         try {
-            TransactionWebhookDTO payload =
-                    objectMapper.readValue(
-                            event.getPayload(),
-                            TransactionWebhookDTO.class
-                    );
+
+            Transaction transaction =
+                    transactionRepository.findById(event.getAggregateId())
+                            .orElseThrow(() ->
+                                    new IllegalStateException(
+                                            "Transação não encontrada: "
+                                                    + event.getAggregateId()
+                                    )
+                            );
+
+            Merchant merchant = transaction.getMerchant();
+
 
             webhookService.sendWebhook(
                     event.getDestinationUrl(),
-                    payload
+                    event.getPayload(),
+                    event.getEventId().toString(),
+                    merchant.getWebhookSecret()
+
             );
+
+            event.setStatus(OutboxStatus.SENT);
+            event.setSentAt(Instant.now());
+            event.setProcessingStartedAt(null);
 
             markAsSent(event);
 

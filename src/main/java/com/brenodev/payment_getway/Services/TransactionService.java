@@ -79,7 +79,6 @@ public class TransactionService {
                 .findById(dto.merchantId())
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Merchant não encontrado"));
-a
         IdempotencyKey key = new IdempotencyKey();
 
         key.setKey(idempotencyKey);

@@ -7,6 +7,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.security.SecureRandom;
+import java.util.HexFormat;
+
 @Entity
 @Table(name = "Merchants")
 @Getter
@@ -21,10 +24,28 @@ public class Merchant {
     @Column(name = "webhook_url")
     private String webhookUrl;
 
+    @Column(name = "webhook_secret", nullable = false)
+    private String webhookSecret;
+
 
     public Merchant(Long id, String name) {
         this.id = id;
         this.name = name;
+    }
+
+
+    @PrePersist
+    private void generateWebhookSecret() {
+
+        if (this.webhookSecret == null) {
+
+            byte[] bytes = new byte[32];
+
+            new SecureRandom().nextBytes(bytes);
+
+            this.webhookSecret =
+                    HexFormat.of().formatHex(bytes);
+        }
     }
 }
 
