@@ -37,6 +37,7 @@ public class TransactionService {
     private final AccountRepository accountRepository;
     private final TransactionRepository transactionRepository;
     private final IdempotencyRepository idempotencyRepository;
+    private final TransactionAuditService auditService;
 
 
     private final OutboxService outboxService;
@@ -99,20 +100,36 @@ public class TransactionService {
                 dto.amount()
         );
 
-        transaction.transitionTo(TransactionStatus.PROCESSING);
+        transition(
+                transaction,
+                TransactionStatus.PROCESSING,
+                null
+        );
 
         // 5. Avalia a transação
         DeclineReason reason = evaluate(account, dto.amount());
 
         if (reason != null) {
+            transition(
+                    transaction,
+                    TransactionStatus.DECLINED,
+                    reason.name()
+            );
 
-            transaction.decline(reason);
+            transaction.setDeclineReason(reason);
 
         } else {
 
             account.debit(dto.amount());
 
-            transaction.transitionTo(TransactionStatus.APPROVED);
+            transition(
+                    transaction,
+                    TransactionStatus.APPROVED,
+                    null
+            );
+
+
+
         }
 
         // 6. Salva a transação
@@ -184,7 +201,11 @@ public class TransactionService {
                         ));
 
 
-        transaction.transitionTo(TransactionStatus.REFUNDED);
+        transition(
+                transaction,
+                TransactionStatus.REFUNDED,
+                "REFUND"
+        );
 
 
         account.credit(transaction.getAmount());
@@ -218,16 +239,41 @@ public class TransactionService {
 
 
     @Transactional
-    private DeclineReason evaluate(Account account, BigDecimal amount) {
+    private DeclineReason evaluate(
+            Account account,
+            BigDecimal amount
+    ) {
         if (account.getBalance().compareTo(amount) < 0) {
             return DeclineReason.INSUFFICIENT_FUNDS;
         }
 
-        if (amount.compareTo(account.getPerTransactionLimit()) > 0) {
+        if (amount.compareTo(
+                account.getPerTransactionLimit()
+        ) > 0) {
             return DeclineReason.PER_TRANSACTION_LIMIT_EXCEEDED;
         }
 
         return null;
+    }
+
+
+    private void transition(
+            Transaction transaction,
+            TransactionStatus newStatus,
+            String reason
+    ) {
+
+        TransactionStatus previousStatus =
+                transaction.getStatus();
+
+        transaction.transitionTo(newStatus);
+
+        auditService.record(
+                transaction,
+                previousStatus,
+                newStatus,
+                reason
+        );
     }
 
 
