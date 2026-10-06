@@ -1,4 +1,4 @@
-package com.brenodev.payment_getway.Tests;
+package com.brenodev.payment_getway.Test;
 
 
 import com.brenodev.payment_getway.DTOs.TransactionWebhookDTO;

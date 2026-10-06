@@ -118,11 +118,20 @@ Operações simultâneas sobre uma mesma conta exigem mecanismos explícitos de 
 
 O projeto explora estratégias de bloqueio de registros para reduzir condições de corrida e preservar a integridade dos saldos.
 
-### Idempotency
+## Idempotência
 
-Requisições repetidas não devem produzir efeitos financeiros duplicados.
+A criação de pagamentos utiliza `Idempotency-Key`.
 
-A implementação de mecanismos de idempotência busca garantir que uma mesma operação lógica seja reconhecida mesmo quando submetida mais de uma vez.
+A chave é associada à conta e ao hash da requisição.
+
+Caso a mesma chave seja reutilizada com os mesmos dados,
+o gateway retorna a transação previamente criada.
+
+Caso a mesma chave seja utilizada com payload diferente,
+a requisição é rejeitada.
+
+Isso evita a criação de pagamentos duplicados em cenários
+de retry por timeout, falhas de rede ou reenvio pelo cliente.
 
 ### Monetary Precision
 
