@@ -16,7 +16,7 @@
 
 [X] Dia 12: Logs estruturados e auditoria — toda mudança de estado da transação vira um registro imutável (event sourcing simplificado, nem precisa ser o padrão completo, só um histórico append-only).
 
-[] Dia 13-14 (fim de semana): Testes de integração ponta a ponta (Testcontainers com banco real), documentação da API (OpenAPI/Swagger), README explicando as decisões de arquitetura — isso é o que recrutador sênior realmente lê.
+[X] Dia 13-14 (fim de semana): Testes de integração ponta a ponta (Testcontainers com banco real), documentação da API (OpenAPI/Swagger), README explicando as decisões de arquitetura — isso é o que recrutador sênior realmente lê.
 
 ## Semana 3 — Extensão (opcional, Nível 2)
 
