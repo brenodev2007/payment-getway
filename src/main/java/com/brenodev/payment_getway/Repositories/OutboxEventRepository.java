@@ -15,8 +15,10 @@ public interface OutboxEventRepository extends JpaRepository<OutboxEvent, Long> 
             OutboxStatus status,
             Instant now
     );
-    
-    
+
+    List<OutboxEvent> findByStatus(OutboxStatus status);
+
+    long countByStatus(OutboxStatus status);
     
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     List<OutboxEvent>
