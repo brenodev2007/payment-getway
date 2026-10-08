@@ -1,20 +1,15 @@
 
 package com.brenodev.payment_getway.Config;
 
-import com.brenodev.payment_getway.Entity.Merchant;
 import com.brenodev.payment_getway.Entity.OutboxEvent;
-import com.brenodev.payment_getway.Entity.Transaction;
 import com.brenodev.payment_getway.Enums.OutboxStatus;
 import com.brenodev.payment_getway.Repositories.OutboxEventRepository;
-import com.brenodev.payment_getway.Repositories.TransactionRepository;
 import com.brenodev.payment_getway.Services.OutboxClaimService;
-import com.brenodev.payment_getway.Services.WebhookService;
+import com.brenodev.payment_getway.Services.RabbitMQPublisherService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-
 
 import java.time.Instant;
 import java.util.List;
@@ -24,20 +19,15 @@ import java.util.List;
 @Slf4j
 public class OutboxWorker {
 
-    private final OutboxEventRepository outboxRepository;
-    private final OutboxClaimService claimService;
-    private final WebhookService webhookService;
-    private final OutboxProperties properties;
-    private final TransactionRepository transactionRepository;
-
     private static final long PROCESSING_TIMEOUT_MINUTES = 5;
 
+    private final OutboxEventRepository outboxRepository;
+    private final OutboxClaimService claimService;
+    private final RabbitMQPublisherService publisher;
+    private final OutboxProperties properties;
 
     @Scheduled(fixedDelayString = "${webhook.outbox.polling-interval:5000}")
     public void processPendingEvents() {
-
-
-
 
         List<OutboxEvent> events =
                 claimService.claimPendingEvents(
@@ -48,7 +38,6 @@ public class OutboxWorker {
             processEvent(event);
         }
     }
-
 
     @Scheduled(fixedDelayString = "${webhook.outbox.recovery-interval:60000}")
     public void recoverStuckEvents() {
@@ -66,43 +55,19 @@ public class OutboxWorker {
         }
     }
 
-
     private void processEvent(OutboxEvent event) {
 
         try {
+            // Publica e aguarda a confirmação do RabbitMQ.
+            publisher.publish(event);
 
-            Transaction transaction =
-                    transactionRepository.findById(event.getAggregateId())
-                            .orElseThrow(() ->
-                                    new IllegalStateException(
-                                            "Transação não encontrada: "
-                                                    + event.getAggregateId()
-                                    )
-                            );
-
-            Merchant merchant = transaction.getMerchant();
-
-
-            webhookService.sendWebhook(
-                    event.getDestinationUrl(),
-                    event.getPayload(),
-                    event.getEventId().toString(),
-                    merchant.getWebhookSecret()
-
-            );
-
-            event.setStatus(OutboxStatus.SENT);
-            event.setSentAt(Instant.now());
-            event.setProcessingStartedAt(null);
-
+            // Só marca como SENT após confirmação positiva.
             markAsSent(event);
 
         } catch (Exception e) {
-
             scheduleRetry(event, e);
         }
     }
-
 
     private void markAsSent(OutboxEvent event) {
 
@@ -110,15 +75,16 @@ public class OutboxWorker {
         event.setSentAt(Instant.now());
         event.setLastError(null);
         event.setProcessingStartedAt(null);
+        event.setNextAttemptAt(null);
 
         outboxRepository.save(event);
 
         log.info(
-                "Webhook enviado com sucesso. EventId: {}",
-                event.getEventId()
+                "Evento publicado no RabbitMQ. eventId={}, type={}",
+                event.getEventId(),
+                event.getEventType()
         );
     }
-
 
     private void scheduleRetry(
             OutboxEvent event,
@@ -139,8 +105,9 @@ public class OutboxWorker {
             event.setNextAttemptAt(null);
 
             log.error(
-                    "Evento {} atingiu o limite de tentativas.",
-                    event.getEventId()
+                    "Evento {} atingiu o limite de tentativas. Erro: {}",
+                    event.getEventId(),
+                    event.getLastError()
             );
 
         } else {
@@ -153,18 +120,18 @@ public class OutboxWorker {
             );
 
             log.warn(
-                    "Falha no webhook {}. Tentativa {} de {}. " +
-                            "Nova tentativa em {} segundos.",
+                    "Falha ao publicar evento {}. Tentativa {} de {}. "
+                            + "Nova tentativa em {} segundos. Erro: {}",
                     event.getEventId(),
                     attempts,
                     properties.getMaxAttempts(),
-                    delay
+                    delay,
+                    event.getLastError()
             );
         }
 
         outboxRepository.save(event);
     }
-
 
     private long calculateBackoff(int attempts) {
 
