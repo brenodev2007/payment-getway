@@ -20,7 +20,7 @@
 
 ## Semana 3 — Extensão (opcional, Nível 2)
 
-[] Dia 15-17: Migrar a notificação de webhook pra outbox pattern com RabbitMQ ou Kafka: gravar evento na mesma transação do banco, worker separado publica.
+[X] Dia 15-17: Migrar a notificação de webhook pra outbox pattern com RabbitMQ ou Kafka: gravar evento na mesma transação do banco, worker separado publica.
 
 [] Dia 18-19: Circuit breaker simulando timeout de "banco emissor" externo, com fallback controlado.
 
